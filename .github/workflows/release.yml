@@ -26,7 +26,7 @@ jobs:
       - name: Bundle with ncc
         run: npx ncc build lib/index.js -o dist
 
-       - name: Upload release asset
+      - name: Upload release asset
         if: env.RELEASE_EXISTS == 'true'
         uses: actions/upload-release-asset@v1
         env:
