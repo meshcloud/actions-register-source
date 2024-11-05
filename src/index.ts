@@ -15,9 +15,13 @@ async function run() {
 
     // Parse the steps input
     const steps = stepsInput.split('\n').map(line => {
-      const match = line.match(/- id: "(.*)"\s*displayName: "(.*)"/);
-      if (match) {
-        return { id: match[1], displayName: match[2] };
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('- id:')) {
+        const idMatch = trimmedLine.match(/- id: "(.*)"/);
+        const displayNameMatch = trimmedLine.match(/displayName: "(.*)"/);
+        if (idMatch && displayNameMatch) {
+          return { id: idMatch[1], displayName: displayNameMatch[1] };
+        }
       }
       return null;
     }).filter(step => step !== null);
