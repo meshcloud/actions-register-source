@@ -2,10 +2,12 @@
   "compilerOptions": {
     "target": "ES2019",
     "module": "commonjs",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "outDir": "lib"
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules"]
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
 }
+

@@ -1,18 +1,24 @@
-name: 'Register Source'
-description: 'Registers the source with the specified steps'
+name: 'Setup Meshstack Authentication'
+description: 'Authenticates with Meshstack and sets up environment variables'
 inputs:
   base_url:
-    description: 'The base URL for the API'
+    description: 'The base URL for the meshstack API'
     required: true
   bb_run_uuid:
-    description: 'The Building Block Run UUID'
+    description: 'The UUID of the building block run'
     required: true
   steps:
     description: 'The steps to register'
     required: true
-  token:
-    description: 'The API token for authentication'
+  client_id:
+    description: 'The client ID for authentication'
     required: true
+  key_secret:
+    description: 'The key secret for authentication'
+    required: true
+outputs:
+  token_file:
+    description: 'Path to the file containing the authentication token'
 runs:
   using: 'node12'
   main: 'dist/index.js'
