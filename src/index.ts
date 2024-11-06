@@ -33,6 +33,8 @@ async function run() {
     const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
     const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
     fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
+    core.info('meshStack auth successful.');
+
 
     // Register the source
     const response = await axios.post(
