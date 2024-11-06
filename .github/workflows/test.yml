@@ -12,7 +12,7 @@ jobs:
         uses: ./
         with:
           base_url: 'https://federation.dev.meshcloud.io'
-          bb_run_uuid: 'example-uuid'
+          bb_run_uuid: 'b1c07bb0-10eb-4bbe-8eee-cf00664ca1ae'
           steps: |
             [
               { "id": "terraform-validate", "displayName": "terraform validate" },

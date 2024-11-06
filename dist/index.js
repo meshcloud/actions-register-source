@@ -46,37 +46,82 @@ async function run() {
         const stepsInput = core.getInput('steps');
         const clientId = core.getInput('client_id');
         const keySecret = core.getInput('key_secret');
-        // Parse the steps input
-        const steps = JSON.parse(`[${stepsInput}]`);
+        core.debug(`Base URL: ${baseUrl}`);
+        core.debug(`BB Run UUID: ${bbRunUuid}`);
+        core.debug(`Steps Input: ${stepsInput}`);
+        core.debug(`Client ID: ${clientId}`);
+        core.debug(`Key Secret: ${keySecret}`);
+        // Decode and parse the steps input
+        const decodedStepsInput = decodeURIComponent(stepsInput);
+        const steps = JSON.parse(decodedStepsInput);
+        core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
         // Authenticate and get the token
-        const authResponse = await axios_1.default.post(`${baseUrl}/api/login`, `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`, {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+        try {
+            const authResponse = await axios_1.default.post(`${baseUrl}/api/login`, `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                maxRedirects: 5 // Follow redirects
+            });
+            const token = authResponse.data.access_token;
+            core.debug(`Token: ${token}`);
+            // Write token to a temporary file
+            const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
+            const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
+            fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
+            core.debug(`Token file path: ${tokenFilePath}`);
+            // Indicate successful login
+            core.info('Login was successful.');
+            // Register the source
+            try {
+                const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, {
+                    source: {
+                        id: 'github',
+                        externalRunId: github.context.runId,
+                        externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
+                    },
+                    steps: steps
+                }, {
+                    headers: {
+                        'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+                        'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                core.setOutput('response', response.data);
+                core.setOutput('token_file', tokenFilePath);
             }
-        });
-        const token = authResponse.data.access_token;
-        // Write token to a temporary file
-        const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
-        const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
-        fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
-        core.info('meshStack auth successful.');
-        // Register the source
-        const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, {
-            source: {
-                id: 'github',
-                externalRunId: github.context.runId,
-                externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
-            },
-            steps: steps
-        }, {
-            headers: {
-                'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-                'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-                'Authorization': `Bearer ${token}`
+            catch (registerError) {
+                if (axios_1.default.isAxiosError(registerError)) {
+                    if (registerError.response) {
+                        core.error(`Register source error response: ${registerError.response.data}`);
+                        core.error(`Status code: ${registerError.response.status}`);
+                    }
+                    else {
+                        core.error(`Register source error message: ${registerError.message}`);
+                    }
+                }
+                else {
+                    core.error(`Unexpected error: ${registerError}`);
+                }
+                throw registerError;
             }
-        });
-        core.setOutput('response', response.data);
-        core.setOutput('token_file', tokenFilePath);
+        }
+        catch (authError) {
+            if (axios_1.default.isAxiosError(authError)) {
+                if (authError.response) {
+                    core.error(`Authentication error response: ${authError.response.data}`);
+                    core.error(`Status code: ${authError.response.status}`);
+                }
+                else {
+                    core.error(`Authentication error message: ${authError.message}`);
+                }
+            }
+            else {
+                core.error(`Unexpected error: ${authError}`);
+            }
+            throw authError;
+        }
     }
     catch (error) {
         if (error instanceof Error) {
@@ -87,7 +132,6 @@ async function run() {
         }
     }
 }
-run();
 
 
 /***/ }),
