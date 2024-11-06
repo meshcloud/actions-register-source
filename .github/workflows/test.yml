@@ -1,0 +1,43 @@
+name: Test Action
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Meshstack Authentication
+        id: setup-meshstack-auth
+        uses: ./
+        with:
+          base_url: 'https://federation.dev.meshcloud.io'
+          bb_run_uuid: 'example-uuid'
+          steps: |
+            [
+              { "id": "terraform-validate", "displayName": "terraform validate" },
+              { "id": "terraform-plan", "displayName": "terraform plan" },
+              { "id": "terraform-apply", "displayName": "terraform apply" }
+            ]
+          client_id: ${{ secrets.CLIENT_ID }}
+          key_secret: ${{ secrets.KEY_SECRET }}
+
+      # - name: Read token from file
+      #   id: read-token
+      #   run: |
+      #     token=$(cat ${{ steps.setup-meshstack-auth.outputs.token_file }} | jq -r .token)
+      #     echo "MESHSTACK_API_TOKEN=$token" >> $GITHUB_ENV
+
+      # - name: Send status
+      #   uses: meshcloud/actions-send-status@v0.0.1
+      #   with:
+      #     base_url: 'https://example.com'
+      #     bb_run_uuid: 'example-uuid'
+      #     step_id: "terraform-validate"
+      #     status: 'SUCCEEDED'
+      #     token: ${{ env.MESHSTACK_API_TOKEN }}
+      #     user_message: 'Successful validate Terraform configuration.'
+      #     system_message: 'Successful validate Terraform configuration.'
+      #

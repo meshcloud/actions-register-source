@@ -14,30 +14,7 @@ async function run() {
     const keySecret = core.getInput('key_secret');
 
     // Parse the steps input
-    const steps = [];
-    const lines = stepsInput.split('\n');
-    let currentStep = null;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('- id:')) {
-        if (currentStep) {
-          steps.push(currentStep);
-        }
-        const idMatch = trimmedLine.match(/- id: "(.*)"/);
-        if (idMatch) {
-          currentStep = { id: idMatch[1], displayName: '' };
-        }
-      } else if (trimmedLine.startsWith('displayName:') && currentStep) {
-        const displayNameMatch = trimmedLine.match(/displayName: "(.*)"/);
-        if (displayNameMatch) {
-          currentStep.displayName = displayNameMatch[1];
-        }
-      }
-    }
-    if (currentStep) {
-      steps.push(currentStep);
-    }
+    const steps = JSON.parse(`[${stepsInput}]`);
 
     // Authenticate and get the token
     const authResponse = await axios.post(

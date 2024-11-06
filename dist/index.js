@@ -1,7 +1,7 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 4822:
+/***/ 9283:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -36,19 +36,37 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+const os = __importStar(__nccwpck_require__(2037));
 async function run() {
     try {
         const baseUrl = core.getInput('base_url');
         const bbRunUuid = core.getInput('bb_run_uuid');
-        const steps = core.getInput('steps');
-        const token = core.getInput('token');
+        const stepsInput = core.getInput('steps');
+        const clientId = core.getInput('client_id');
+        const keySecret = core.getInput('key_secret');
+        // Parse the steps input
+        const steps = JSON.parse(`[${stepsInput}]`);
+        // Authenticate and get the token
+        const authResponse = await axios_1.default.post(`${baseUrl}/api/login`, `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+        const token = authResponse.data.access_token;
+        // Write token to a temporary file
+        const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
+        const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
+        fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
+        // Register the source
         const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, {
             source: {
                 id: 'github',
                 externalRunId: github.context.runId,
                 externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
             },
-            steps: JSON.parse(steps)
+            steps: steps
         }, {
             headers: {
                 'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
@@ -57,6 +75,7 @@ async function run() {
             }
         });
         core.setOutput('response', response.data);
+        core.setOutput('token_file', tokenFilePath);
     }
     catch (error) {
         if (error instanceof Error) {
@@ -40206,7 +40225,7 @@ module.exports = JSON.parse('{"application/1d-interleaved-parityfec":{"source":"
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
-/******/ 	var __webpack_exports__ = __nccwpck_require__(4822);
+/******/ 	var __webpack_exports__ = __nccwpck_require__(9283);
 /******/ 	module.exports = __webpack_exports__;
 /******/ 	
 /******/ })()
