@@ -78,22 +78,9 @@ async function run() {
                 });
                 token = authResponse.data.access_token;
                 core.debug(`Token: ${token}`);
-                // Write token and variables to a temporary file
-                const tokenData = {
-                    token,
-                    bb_run_uuid: bbRunUuid,
-                    base_url: baseUrl,
-                    resource_group_name: core.getInput('resource_group_name')
-                };
-                fs.writeFileSync(tokenFilePath, JSON.stringify(tokenData, null, 2));
+                // Write token to a temporary file
+                fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
                 core.debug(`Token file path: ${tokenFilePath}`);
-                // Verify that the file was written
-                if (fs.existsSync(tokenFilePath)) {
-                    core.info(`Token file successfully written to ${tokenFilePath}`);
-                }
-                else {
-                    core.error(`Failed to write token file to ${tokenFilePath}`);
-                }
                 // Indicate successful login
                 core.info('Login was successful.');
             }
