@@ -24,79 +24,105 @@ async function run() {
     const steps = JSON.parse(decodedStepsInput);
     core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
 
-    // Authenticate and get the token
-    try {
-      const authResponse = await axios.post(
-        `${baseUrl}/api/login`,
-        `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`,
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          maxRedirects: 5 // Follow redirects
-        }
-      );
+    // Define the path to the token file
+    const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
+    core.debug(`Temporary directory: ${tempDir}`);
+    const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
 
-      const token = authResponse.data.access_token;
-      core.debug(`Token: ${token}`);
+    let token: string;
 
-      // Write token to a temporary file
-      const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
-      const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
-      fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
-      core.debug(`Token file path: ${tokenFilePath}`);
-
-      // Indicate successful login
-      core.info('Login was successful.');
-
-      // Register the source
+    // Check if the token file exists
+    if (fs.existsSync(tokenFilePath)) {
+      // Read the token from the file
+      const tokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf8'));
+      token = tokenData.token;
+      core.info('Token read from file.');
+    } else {
+      // Authenticate and get the token
       try {
-        const response = await axios.post(
-          `${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`,
-          {
-            source: {
-              id: 'github',
-              externalRunId: github.context.runId,
-              externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
-            },
-            steps: steps
-          },
+        const authResponse = await axios.post(
+          `${baseUrl}/api/login`,
+          `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`,
           {
             headers: {
-              'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-              'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-              'Authorization': `Bearer ${token}`
-            }
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            maxRedirects: 5 // Follow redirects
           }
         );
 
-        core.setOutput('response', response.data);
-        core.setOutput('token_file', tokenFilePath);
-      } catch (registerError) {
-        if (axios.isAxiosError(registerError)) {
-          if (registerError.response) {
-            core.error(`Register source error response: ${registerError.response.data}`);
-            core.error(`Status code: ${registerError.response.status}`);
+        token = authResponse.data.access_token;
+        core.debug(`Token: ${token}`);
+
+        // Write token and variables to a temporary file
+        const tokenData = {
+          token,
+          bb_run_uuid: bbRunUuid,
+          base_url: baseUrl,
+          resource_group_name: core.getInput('resource_group_name')
+        };
+        fs.writeFileSync(tokenFilePath, JSON.stringify(tokenData, null, 2));
+        core.debug(`Token file path: ${tokenFilePath}`);
+
+        // Verify that the file was written
+        if (fs.existsSync(tokenFilePath)) {
+          core.info(`Token file successfully written to ${tokenFilePath}`);
+        } else {
+          core.error(`Failed to write token file to ${tokenFilePath}`);
+        }
+
+        // Indicate successful login
+        core.info('Login was successful.');
+      } catch (authError) {
+        if (axios.isAxiosError(authError)) {
+          if (authError.response) {
+            core.error(`Authentication error response: ${JSON.stringify(authError.response.data)}`);
+            core.error(`Status code: ${authError.response.status}`);
           } else {
-            core.error(`Register source error message: ${registerError.message}`);
+            core.error(`Authentication error message: ${authError.message}`);
           }
         } else {
-          core.error(`Unexpected error: ${registerError}`);
+          core.error(`Unexpected error: ${authError}`);
         }
-        throw registerError;
+        throw authError;
       }
-    } catch (authError) {
-      if (axios.isAxiosError(authError)) {
-        if (authError.response) {
-          core.error(`Authentication error response: ${authError.response.data}`);
-          core.error(`Status code: ${authError.response.status}`);
+    }
+
+    // Register the source
+    try {
+      const response = await axios.post(
+        `${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`,
+        {
+          source: {
+            id: 'github',
+            externalRunId: github.context.runId,
+            externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
+          },
+          steps: steps
+        },
+        {
+          headers: {
+            'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+            'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      core.setOutput('response', response.data);
+      core.setOutput('token_file', tokenFilePath);
+    } catch (registerError) {
+      if (axios.isAxiosError(registerError)) {
+        if (registerError.response) {
+          core.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
+          core.error(`Status code: ${registerError.response.status}`);
         } else {
-          core.error(`Authentication error message: ${authError.message}`);
+          core.error(`Register source error message: ${registerError.message}`);
         }
       } else {
-        core.error(`Unexpected error: ${authError}`);
+        core.error(`Unexpected error: ${registerError}`);
       }
-      throw authError;
+      throw registerError;
     }
   } catch (error) {
     if (error instanceof Error) {
@@ -106,4 +132,6 @@ async function run() {
     }
   }
 }
+
+run();
 
