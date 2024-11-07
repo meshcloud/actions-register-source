@@ -7,17 +7,24 @@ import * as os from 'os';
 
 async function run() {
   try {
-    const baseUrl = core.getInput('base_url');
-    const bbRunUuid = core.getInput('bb_run_uuid');
+    const buildingBlockRun = core.getInput('buildingBlockRun');
     const stepsInput = core.getInput('steps');
     const clientId = core.getInput('client_id');
     const keySecret = core.getInput('key_secret');
 
-    core.debug(`Base URL: ${baseUrl}`);
-    core.debug(`BB Run UUID: ${bbRunUuid}`);
+    core.debug(`Building Block Run: ${buildingBlockRun}`);
     core.debug(`Steps Input: ${stepsInput}`);
     core.debug(`Client ID: ${clientId}`);
     core.debug(`Key Secret: ${keySecret}`);
+
+    // Decode and parse the buildingBlockRun input
+    const decodedBuildingBlockRun = Buffer.from(buildingBlockRun, 'base64').toString('utf-8');
+    const buildingBlockRunJson = JSON.parse(decodedBuildingBlockRun);
+    const bbRunUuid = buildingBlockRunJson.metadata.uuid;
+    const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
+
+    core.debug(`Base URL: ${baseUrl}`);
+    core.debug(`BB Run UUID: ${bbRunUuid}`);
 
     // Decode and parse the steps input
     const decodedStepsInput = decodeURIComponent(stepsInput);
@@ -40,18 +47,23 @@ async function run() {
       const token = authResponse.data.access_token;
       core.debug(`Token: ${token}`);
 
-      // Write token to a temporary file
+      // Write token and other variables to a temporary file
       const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
       const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
-      fs.writeFileSync(tokenFilePath, JSON.stringify({ token }));
+      const tokenData = {
+        token,
+        bbRunUuid,
+        baseUrl
+      };
+      fs.writeFileSync(tokenFilePath, JSON.stringify(tokenData));
       core.debug(`Token file path: ${tokenFilePath}`);
 
       // Indicate successful login
       core.info('Login was successful.');
 
       // Read token from the file
-      const tokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf8'));
-      const fileToken = tokenData.token;
+      const fileTokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf8'));
+      const fileToken = fileTokenData.token;
 
       // Prepare the request payload and headers
       const requestPayload = {
