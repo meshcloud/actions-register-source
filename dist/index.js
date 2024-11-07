@@ -72,26 +72,9 @@ async function run() {
         for (const [key, value] of Object.entries(extractedInputs)) {
             core.setOutput(key, value);
         }
-        // Convert the YAML steps input to JSON format
-        const steps = stepsInput.split('\n').reduce((acc, line) => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('-')) {
-                acc.push({});
-            }
-            else if (trimmedLine.includes(':')) {
-                const [key, value] = trimmedLine.split(':').map((str) => str.trim());
-                acc[acc.length - 1][key] = value;
-            }
-            return acc;
-        }, []);
+        // Parse the JSON steps input
+        const steps = JSON.parse(stepsInput);
         core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
-        // Ensure each step has an id
-        steps.forEach((step, index) => {
-            if (!step.id) {
-                core.error(`Step at index ${index} is missing an id: ${JSON.stringify(step)}`);
-                throw new Error(`Step at index ${index} is missing an id`);
-            }
-        });
         // Authenticate and get the token
         try {
             const authResponse = await axios_1.default.post(`${baseUrl}/api/login`, `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`, {
