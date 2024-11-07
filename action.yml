@@ -4,6 +4,7 @@ inputs:
   steps:
     description: 'The steps to register'
     required: true
+    type: array
   client_id:
     description: 'The client ID for authentication'
     required: true

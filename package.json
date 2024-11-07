@@ -13,12 +13,10 @@
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.0",
     "axios": "^1.7.7",
-    "js-yaml": "^4.1.0",
     "ncc": "^0.3.6"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.8.7",
     "@vercel/ncc": "^0.34.0",
     "ts-jest": "^29.2.5",

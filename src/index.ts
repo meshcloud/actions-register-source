@@ -4,7 +4,6 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import * as yaml from 'js-yaml';
 
 async function run() {
   try {
@@ -46,8 +45,8 @@ async function run() {
       core.setOutput(key, value);
     }
 
-    // Parse the steps input from YAML
-    const steps = yaml.load(stepsInput);
+    // Parse the steps input from JSON
+    const steps = JSON.parse(stepsInput);
     core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
 
     // Authenticate and get the token
