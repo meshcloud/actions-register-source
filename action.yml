@@ -10,11 +10,7 @@ inputs:
   key_secret:
     description: 'The key secret for authentication'
     required: true
-  inputs:
-    description: 'The inputs from meshstStack buildingblock'
-    required: false
-    default: '[]'
-outputs:
+  outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
 runs:
