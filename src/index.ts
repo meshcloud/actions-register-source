@@ -4,6 +4,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as yaml from 'js-yaml';
 
 async function run() {
   try {
@@ -45,9 +46,8 @@ async function run() {
       core.setOutput(key, value);
     }
 
-    // Decode and parse the steps input
-    const decodedStepsInput = decodeURIComponent(stepsInput);
-    const steps = JSON.parse(decodedStepsInput);
+    // Parse the steps input from YAML
+    const steps = yaml.load(stepsInput);
     core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
 
     // Authenticate and get the token
@@ -152,3 +152,4 @@ async function run() {
 }
 
 run();
+
