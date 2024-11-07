@@ -45,8 +45,17 @@ async function run() {
       core.setOutput(key, value);
     }
 
-    // Parse the steps input from JSON
-    const steps = JSON.parse(stepsInput);
+    // Convert the YAML steps input to JSON format
+    const steps = stepsInput.split('\n').reduce((acc: any[], line: string) => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('-')) {
+        acc.push({});
+      } else if (trimmedLine.includes(':')) {
+        const [key, value] = trimmedLine.split(':').map((str) => str.trim());
+        acc[acc.length - 1][key] = value;
+      }
+      return acc;
+    }, []);
     core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
 
     // Authenticate and get the token
