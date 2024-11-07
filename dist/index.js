@@ -89,6 +89,7 @@ async function run() {
         steps.forEach((step, index) => {
             if (!step.id) {
                 core.error(`Step at index ${index} is missing an id: ${JSON.stringify(step)}`);
+                throw new Error(`Step at index ${index} is missing an id`);
             }
         });
         // Authenticate and get the token
