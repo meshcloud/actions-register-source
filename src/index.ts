@@ -69,7 +69,7 @@ async function run() {
             headers: {
               'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
               'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${fileToken}`
             }
           }
         );
@@ -79,7 +79,7 @@ async function run() {
       } catch (registerError) {
         if (axios.isAxiosError(registerError)) {
           if (registerError.response) {
-            core.error(`Register source error response: ${registerError.response.data}`);
+            core.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
             core.error(`Status code: ${registerError.response.status}`);
           } else {
             core.error(`Register source error message: ${registerError.message}`);
@@ -92,7 +92,7 @@ async function run() {
     } catch (authError) {
       if (axios.isAxiosError(authError)) {
         if (authError.response) {
-          core.error(`Authentication error response: ${authError.response.data}`);
+          core.error(`Authentication error response: ${JSON.stringify(authError.response.data)}`);
           core.error(`Status code: ${authError.response.status}`);
         } else {
           core.error(`Authentication error message: ${authError.message}`);
