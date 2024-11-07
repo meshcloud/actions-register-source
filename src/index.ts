@@ -69,7 +69,7 @@ async function run() {
             headers: {
               'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
               'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-              'Authorization': `Bearer ${fileToken}`
+              'Authorization': `Bearer ${token}`
             }
           }
         );
