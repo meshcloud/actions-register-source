@@ -1,15 +1,16 @@
 {
-  "compilerOptions": {
-    "target": "ES2019",
-    "module": "commonjs",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src/**/*.ts"]
-
-}
+     "compilerOptions": {
+       "outDir": "./dist",
+       "module": "commonjs",
+       "target": "es6",
+       "lib": ["es6"],
+       "sourceMap": true,
+       "strict": true,
+       "esModuleInterop": true,
+       "skipLibCheck": true,
+       "forceConsistentCasingInFileNames": true
+     },
+     "include": ["src/**/*.ts"],
+     "exclude": ["node_modules"]
+   }
 

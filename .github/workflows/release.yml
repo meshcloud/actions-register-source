@@ -24,7 +24,9 @@ jobs:
         run: npx tsc
 
       - name: Bundle with ncc
-        run: npx ncc build dist/index.js -o dist
+        run:  |
+          npx ncc build dist/index.js -o dist
+          npx ncc build dist/cleanup.js -o dist
 
       - name: Get release ID
         id: get_release
