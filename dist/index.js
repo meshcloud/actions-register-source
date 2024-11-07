@@ -85,6 +85,12 @@ async function run() {
             return acc;
         }, []);
         core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
+        // Ensure each step has an id
+        steps.forEach((step, index) => {
+            if (!step.id) {
+                core.error(`Step at index ${index} is missing an id: ${JSON.stringify(step)}`);
+            }
+        });
         // Authenticate and get the token
         try {
             const authResponse = await axios_1.default.post(`${baseUrl}/api/login`, `grant_type=client_credentials&client_id=${clientId}&client_secret=${keySecret}`, {
