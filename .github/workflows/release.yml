@@ -25,8 +25,7 @@ jobs:
 
       - name: Bundle with ncc
         run:  |
-          npx ncc build dist/index.js -o dist
-          npx ncc build dist/cleanup.js -o dist
+          npm run build 
 
       - name: Get release ID
         id: get_release

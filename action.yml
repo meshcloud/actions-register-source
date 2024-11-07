@@ -17,8 +17,8 @@ outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
-  post: 'dist/index.js'
+  using: 'node20'
+  main: 'dist/main/index.js'
+  post: 'dist/cleanup/index.js'
 
 
