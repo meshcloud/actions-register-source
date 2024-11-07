@@ -1,12 +1,6 @@
 name: 'Setup Meshstack Authentication'
 description: 'Authenticates with Meshstack and sets up environment variables'
 inputs:
-  base_url:
-    description: 'The base URL for the meshstack API'
-    required: true
-  bb_run_uuid:
-    description: 'The UUID of the building block run'
-    required: true
   steps:
     description: 'The steps to register'
     required: true

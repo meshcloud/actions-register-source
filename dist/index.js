@@ -41,14 +41,15 @@ const path = __importStar(__nccwpck_require__(1017));
 const os = __importStar(__nccwpck_require__(2037));
 async function run() {
     try {
-        const buildingBlockRun = core.getInput('buildingBlockRun');
         const stepsInput = core.getInput('steps');
         const clientId = core.getInput('client_id');
         const keySecret = core.getInput('key_secret');
-        core.debug(`Building Block Run: ${buildingBlockRun}`);
         core.debug(`Steps Input: ${stepsInput}`);
         core.debug(`Client ID: ${clientId}`);
         core.debug(`Key Secret: ${keySecret}`);
+        // Extract buildingBlockRun from the GitHub event payload
+        const buildingBlockRun = github.context.payload.inputs.buildingBlockRun;
+        core.debug(`Building Block Run: ${buildingBlockRun}`);
         // Decode and parse the buildingBlockRun input
         const decodedBuildingBlockRun = Buffer.from(buildingBlockRun, 'base64').toString('utf-8');
         const buildingBlockRunJson = JSON.parse(decodedBuildingBlockRun);
