@@ -44,9 +44,11 @@ async function run() {
         const stepsInput = core.getInput('steps');
         const clientId = core.getInput('client_id');
         const keySecret = core.getInput('key_secret');
+        const inputs = JSON.parse(core.getInput('inputs'));
         core.debug(`Steps Input: ${stepsInput}`);
         core.debug(`Client ID: ${clientId}`);
         core.debug(`Key Secret: ${keySecret}`);
+        core.debug(`Inputs: ${JSON.stringify(inputs)}`);
         // Extract buildingBlockRun from the GitHub event payload
         const buildingBlockRun = github.context.payload.inputs.buildingBlockRun;
         core.debug(`Building Block Run: ${buildingBlockRun}`);
@@ -57,6 +59,18 @@ async function run() {
         const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
         core.debug(`Base URL: ${baseUrl}`);
         core.debug(`BB Run UUID: ${bbRunUuid}`);
+        // Extract additional inputs
+        const extractedInputs = {};
+        inputs.forEach((input) => {
+            var _a;
+            const value = (_a = buildingBlockRunJson.spec.buildingBlock.spec.inputs.find((i) => i.key === input.key)) === null || _a === void 0 ? void 0 : _a.value;
+            if (value) {
+                extractedInputs[input.key] = value;
+                // Write each extracted input to GITHUB_OUTPUT
+                core.setOutput(input.key, value);
+            }
+        });
+        core.debug(`Extracted Inputs: ${JSON.stringify(extractedInputs)}`);
         // Decode and parse the steps input
         const decodedStepsInput = decodeURIComponent(stepsInput);
         const steps = JSON.parse(decodedStepsInput);
@@ -77,7 +91,8 @@ async function run() {
             const tokenData = {
                 token,
                 bbRunUuid,
-                baseUrl
+                baseUrl,
+                ...extractedInputs
             };
             fs.writeFileSync(tokenFilePath, JSON.stringify(tokenData));
             core.debug(`Token file path: ${tokenFilePath}`);
