@@ -75,21 +75,27 @@ async function run() {
             // Read token from the file
             const tokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf8'));
             const fileToken = tokenData.token;
+            // Prepare the request payload and headers
+            const requestPayload = {
+                source: {
+                    id: 'github',
+                    externalRunId: github.context.runId,
+                    externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
+                },
+                steps: steps
+            };
+            const requestHeaders = {
+                'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+                'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+                'Authorization': `Bearer ${fileToken}`
+            };
+            // Log the request payload and headers
+            core.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
+            core.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
             // Register the source
             try {
-                const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, {
-                    source: {
-                        id: 'github',
-                        externalRunId: github.context.runId,
-                        externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
-                    },
-                    steps: steps
-                }, {
-                    headers: {
-                        'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-                        'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-                        'Authorization': `Bearer ${fileToken}`
-                    }
+                const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, requestPayload, {
+                    headers: requestHeaders
                 });
                 core.setOutput('response', response.data);
                 core.setOutput('token_file', tokenFilePath);
