@@ -20,7 +20,6 @@ For more information, refer to the [MeshStack documentation on building block in
 
 ### Inputs
 
-- `` (required): The base URL for the API.
 - `client_id` (required): The client ID for the API.
 - `key_secret` (required): The key secret for the API.
 - `steps` (required): The steps to register.
