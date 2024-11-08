@@ -12,45 +12,48 @@ For more details on the meshBuildingBlockRun API, refer to the [meshcloud API do
 
 For more information on integrating with the meshStack Building Block pipeline, refer to the [meshStack Building Block pipeline integration documentation](https://docs.meshcloud.io/docs/meshstack.building-pipeline-integration.html#building-block-run-and-steps).
 
+### Building Block Inputs:
+
+When MeshStack triggers your pipeline, it sends a GitHub Actions event containing the URL, building block ID, and all the inputs your building block needs. These inputs are written to `GITHUB_OUTPUT`. You can use these inputs in your pipeline with the syntax `${{ steps.setup-meshstack-auth.outputs.your_input_from_meshstack_bb }}`.
+
+For more information, refer to the [MeshStack documentation on building block inputs](https://docs.meshcloud.io/docs/administration.building-blocks.html#building-block-inputs).
 
 ### Inputs
 
-- `base_url` (required): The base URL for the API.
-- `bb_run_uuid` (required): The Building Block Run UUID.
+- `` (required): The base URL for the API.
+- `client_id` (required): The client ID for the API.
+- `key_secret` (required): The key secret for the API.
 - `steps` (required): The steps to register.
-- `token` (required): The API token for authentication.
 
 ### Outputs
 
-- `response`: The response from the API.
+- `token_file`: Path to the file containing the authentication token
+
 
 ### Example Usage
 
 ```yaml
-name: Register Source Example
-on:
-  push:
-    branches:
-      - main
+- name: Setup meshStack bbrun
+  id: setup-meshstack-auth
+  uses: meshcloud/actions-register-source@main
+  with:
+    client_id: ${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}
+    key_secret: ${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}
+    steps: |
+      [
+        { "id": "terraform-plan", "displayName": "terraform plan" },
+      ] 
 
-jobs:
-  register-source:
-    runs-on: ubuntu-latest
+- name: Terragrunt plan
+  id: terraform-plan
+  run: terraform plan -var="resource_group_name=${{ steps.setup-meshstack-auth.outputs.resource_group_name }}" -out=tfplan
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
 
-      - name: Register Source
-        uses: meshcloud/register-source@v0.0.10
-        with:
-          base_url: 'https://api.example.com'
-          bb_run_uuid: 'your-bb-run-uuid'
-          token: ${{ secrets.API_TOKEN }}
-          steps: |
-            [
-              { "id": "terraform-validate", "displayName": "terraform validate" },
-              { "id": "terraform-plan", "displayName": "terraform plan" },
-              { "id": "terraform-apply", "displayName": "terraform apply" }
-            ] 
-```
+- name: Send status on plan
+  if: ${{ steps.terraform-plan.outcome == 'success' }}
+  uses: meshcloud/actions-send-status@main
+  with:
+    step_id: "terraform-plan"
+    status: ${{ steps.terraform-plan.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
+    user_message: ${{ steps.terraform-plan.outcome == 'success' && 'Successful plan Terraform configuration.' || 'Failed to plan Terraform configuration.' }}
+    system_message:  ${{ steps.terraform-plan.outcome == 'success' && 'Successful plan Terraform configuration.' || 'Failed to plan Terraform configuration.' }}```
