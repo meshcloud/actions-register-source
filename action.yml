@@ -5,6 +5,10 @@ inputs:
     description: 'The steps to register'
     required: true
     type: string
+  buildingBlockRunUrl:
+    description: 'URL to fetch the building block run object from (alternative to buildingBlockRun input via payload)'
+    required: false
+    type: string
 outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
