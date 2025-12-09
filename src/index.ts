@@ -9,6 +9,14 @@ interface TokenData {
   token: string;
 }
 
+interface BuildingBlockInput {
+  key: string;
+  value: string;
+  type: string;
+  isSensitive: boolean;
+  isEnvironment: boolean;
+}
+
 interface BuildingBlockRun {
   metadata: {
     uuid: string;
@@ -16,7 +24,7 @@ interface BuildingBlockRun {
   spec: {
     buildingBlock: {
       spec: {
-        inputs: any[];
+        inputs: BuildingBlockInput[];
       };
     };
   };
@@ -25,6 +33,28 @@ interface BuildingBlockRun {
       href: string;
     };
   };
+}
+
+interface RequestSource {
+  id: string;
+  externalRunId: number;
+  externalRunUrl: string;
+}
+
+interface RequestPayload {
+  source: RequestSource;
+  steps: any[];
+}
+
+interface RequestHeaders {
+  [key: string]: string;
+  'Content-Type': string;
+  'Accept': string;
+  'Authorization': string;
+}
+
+interface ExtractedInputs {
+  [key: string]: string;
 }
 
 function loadTokenFromFile(): { token: string; tokenFilePath: string } {
@@ -95,6 +125,84 @@ async function loadBuildingBlockRunFromUrl(
   }
 }
 
+function extractInputs(buildingBlockRun: BuildingBlockRun): ExtractedInputs {
+  core.debug('Extracting inputs from building block run');
+
+  const inputs = buildingBlockRun.spec.buildingBlock.spec.inputs;
+  const extractedInputs: ExtractedInputs = {};
+
+  inputs.forEach((input: BuildingBlockInput) => {
+    const value = inputs.find((i: BuildingBlockInput) => i.key === input.key)?.value;
+    if (value) {
+      extractedInputs[input.key] = value;
+    }
+  });
+
+  core.debug(`Extracted Inputs: ${JSON.stringify(extractedInputs)}`);
+
+  // Write each extracted input to GITHUB_OUTPUT
+  for (const [key, value] of Object.entries(extractedInputs)) {
+    core.setOutput(key, value);
+  }
+
+  return extractedInputs;
+}
+
+function buildRequestHeaders(token: string): RequestHeaders {
+  return {
+    'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+    'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
+    'Authorization': `Bearer ${token}`
+  };
+}
+
+function buildRequestPayload(steps: any[]): RequestPayload {
+  return {
+    source: {
+      id: 'github',
+      externalRunId: github.context.runId,
+      externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
+    },
+    steps: steps
+  };
+}
+
+async function registerSource(
+  baseUrl: string,
+  bbRunUuid: string,
+  requestPayload: RequestPayload,
+  requestHeaders: RequestHeaders,
+  tokenFilePath: string
+): Promise<void> {
+  core.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
+  core.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
+
+  try {
+    const response = await axios.post(
+      `${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`,
+      requestPayload,
+      {
+        headers: requestHeaders
+      }
+    );
+
+    core.setOutput('response', response.data);
+    core.setOutput('token_file', tokenFilePath);
+  } catch (registerError) {
+    if (axios.isAxiosError(registerError)) {
+      if (registerError.response) {
+        core.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
+        core.error(`Status code: ${registerError.response.status}`);
+      } else {
+        core.error(`Register source error message: ${registerError.message}`);
+      }
+    } else {
+      core.error(`Unexpected error: ${registerError}`);
+    }
+    throw registerError;
+  }
+}
+
 async function run() {
   try {
     const stepsInput = core.getInput('steps');
@@ -118,75 +226,23 @@ async function run() {
     // Extract common data from buildingBlockRunJson
     const bbRunUuid = buildingBlockRunJson.metadata.uuid;
     const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
-    const inputs = buildingBlockRunJson.spec.buildingBlock.spec.inputs;
 
     core.debug(`Base URL: ${baseUrl}`);
     core.debug(`BB Run UUID: ${bbRunUuid}`);
 
-    // Extract additional inputs
-    const extractedInputs: { [key: string]: string } = {};
-    inputs.forEach((input: { key: string }) => {
-      const value = buildingBlockRunJson.spec.buildingBlock.spec.inputs.find((i: { key: string }) => i.key === input.key)?.value;
-      if (value) {
-        extractedInputs[input.key] = value;
-      }
-    });
-
-    core.debug(`Extracted Inputs: ${JSON.stringify(extractedInputs)}`);
-
-    // Write each extracted input to GITHUB_OUTPUT
-    for (const [key, value] of Object.entries(extractedInputs)) {
-      core.setOutput(key, value);
-    }
+    // Extract inputs and write to outputs
+    extractInputs(buildingBlockRunJson);
 
     // Parse the JSON steps input
     const steps = JSON.parse(stepsInput);
     core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
 
     // Prepare the request payload and headers
-    const requestPayload = {
-      source: {
-        id: 'github',
-        externalRunId: github.context.runId,
-        externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
-      },
-      steps: steps
-    };
-    const requestHeaders = {
-      'Content-Type': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-      'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
-      'Authorization': `Bearer ${token}`
-    };
-
-    // Log the request payload and headers
-    core.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
-    core.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
+    const requestPayload = buildRequestPayload(steps);
+    const requestHeaders = buildRequestHeaders(token);
 
     // Register the source
-    try {
-      const response = await axios.post(
-        `${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`,
-        requestPayload,
-        {
-          headers: requestHeaders
-        }
-      );
-
-      core.setOutput('response', response.data);
-      core.setOutput('token_file', tokenFilePath);
-    } catch (registerError) {
-      if (axios.isAxiosError(registerError)) {
-        if (registerError.response) {
-          core.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
-          core.error(`Status code: ${registerError.response.status}`);
-        } else {
-          core.error(`Register source error message: ${registerError.message}`);
-        }
-      } else {
-        core.error(`Unexpected error: ${registerError}`);
-      }
-      throw registerError;
-    }
+    await registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath);
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message);
