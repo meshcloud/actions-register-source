@@ -1,16 +1,8 @@
-name: 'Setup meshStack Authentication'
-description: 'Authenticates with meshStack and sets up environment variables'
+name: 'Register Building Block Source'
+description: 'Registers a building block source with meshStack'
 inputs:
   steps:
     description: 'The steps to register'
-    required: true
-    type: string
-  client_id:
-    description: 'The client ID for authentication'
-    required: true
-    type: string
-  key_secret:
-    description: 'The key secret for authentication'
     required: true
     type: string
 outputs:
