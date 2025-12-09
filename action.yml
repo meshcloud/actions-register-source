@@ -1,5 +1,5 @@
-name: 'Setup Meshstack Authentication'
-description: 'Authenticates with Meshstack and sets up environment variables'
+name: 'Setup meshStack Authentication'
+description: 'Authenticates with meshStack and sets up environment variables'
 inputs:
   steps:
     description: 'The steps to register'
@@ -17,7 +17,7 @@ outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/main/index.js'
   post: 'dist/cleanup/index.js'
 
