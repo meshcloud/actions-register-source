@@ -1,24 +1,34 @@
-# Register Source GitHub Action
+# meshStack Register Source Action
 
-This GitHub Action registers sources to the meshStack Building Block pipeline workflow. It integrates with the meshStack API to update the status of a Building Block Run with the specified steps.
+This GitHub Action registers building block sources and steps with meshStack. It integrates with the meshStack API to set up the structure of a building block run with the specified steps.
 
-### Overview
+## Overview
 
-The meshStack Building Block pipeline allows you to automate and manage complex workflows by defining a series of steps that need to be executed. Each Building Block Run represents an instance of such a workflow. This GitHub Action helps you register the source of the run and update its status with the specified steps.
+The meshStack building block pipeline allows you to automate and manage complex workflows by defining a series of steps that need to be executed. Each building block run represents an instance of such a workflow. This GitHub Action helps you register the source of the run and define its steps.
 
 In order to return updates for a run to meshStack, you first need to register one or multiple steps and their resources of your run execution. It is up to you how many or how you organize your steps. You can, however, also just send step results back and the registration takes place on the fly. But in order to have a consistent display and ordering of steps, it is highly advised to pre-register steps and sources.
 
-For more details on the meshBuildingBlockRun API, refer to the [meshcloud API documentation](https://docs.meshcloud.io/api/index.html#mesh_buildingblockrun).
+## Related Actions
 
-For more information on integrating with the meshStack Building Block pipeline, refer to the [meshStack Building Block pipeline integration documentation](https://docs.meshcloud.io/docs/meshstack.building-pipeline-integration.html#building-block-run-and-steps).
+This action is part of a suite of GitHub Actions for meshStack building block automation:
 
-### Building Block Inputs:
+- **[actions-meshstack-auth](https://github.com/meshcloud/actions-meshstack-auth)** - Authenticates to the meshStack API (prerequisite for this action)
+- **[actions-register-source](https://github.com/meshcloud/actions-register-source)** (this action) - Registers building block sources and steps with meshStack
+- **[actions-send-status](https://github.com/meshcloud/actions-send-status)** - Sends building block step status updates to meshStack
 
-When MeshStack triggers your pipeline, it sends a GitHub Actions event containing the URL, building block ID, and all the inputs your building block needs. These inputs are written to `GITHUB_OUTPUT`. You can use these inputs in your pipeline with the syntax `${{ steps.setup-meshstack-auth.outputs.your_input_from_meshstack_bb }}`.
+## Documentation
 
-For more information, refer to the [MeshStack documentation on building block inputs](https://docs.meshcloud.io/docs/administration.building-blocks.html#building-block-inputs).
+For more information about meshStack building blocks and GitHub Actions integration, refer to:
+- [meshStack GitHub Actions Integration](https://docs.meshcloud.io/integrations/github/github-actions/)
+- [meshStack API Documentation](https://docs.meshcloud.io/api/index.html#mesh_buildingblockrun)
 
-### Inputs
+## Building Block Inputs
+
+When meshStack triggers your pipeline, it sends a GitHub Actions event containing the URL, building block ID, and all the inputs your building block needs. These inputs are written to `GITHUB_OUTPUT`. You can use these inputs in your pipeline with the syntax `${{ steps.setup-meshstack-auth.outputs.your_input_from_meshstack_bb }}`.
+
+For more information, refer to the [meshStack documentation on building block inputs](https://docs.meshcloud.io/docs/administration.building-blocks.html#building-block-inputs).
+
+## Inputs
 
 - `client_id` (required): The client ID for the API.
 - `key_secret` (required): The key secret for the API.
@@ -28,8 +38,7 @@ For more information, refer to the [MeshStack documentation on building block in
 
 - `token_file`: Path to the file containing the authentication token
 
-
-### Example Usage
+## Example Usage
 
 ```yaml
 - name: Setup meshStack bbrun
