@@ -1,23 +1,15 @@
-name: 'Setup Meshstack Authentication'
-description: 'Authenticates with Meshstack and sets up environment variables'
+name: 'Register Building Block Source'
+description: 'Registers a building block source with meshStack'
 inputs:
   steps:
     description: 'The steps to register'
-    required: true
-    type: string
-  client_id:
-    description: 'The client ID for authentication'
-    required: true
-    type: string
-  key_secret:
-    description: 'The key secret for authentication'
     required: true
     type: string
 outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/main/index.js'
   post: 'dist/cleanup/index.js'
 

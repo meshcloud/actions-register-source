@@ -25663,42 +25663,31 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 const os = __importStar(__nccwpck_require__(2037));
-function cleanup() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
-            const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
-            if (fs.existsSync(tokenFilePath)) {
-                fs.unlinkSync(tokenFilePath);
-                core.info(`Deleted token file: ${tokenFilePath}`);
-            }
-            else {
-                core.info(`Token file does not exist: ${tokenFilePath}`);
-            }
+async function cleanup() {
+    try {
+        const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
+        const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
+        if (fs.existsSync(tokenFilePath)) {
+            fs.unlinkSync(tokenFilePath);
+            core.info(`Deleted token file: ${tokenFilePath}`);
         }
-        catch (error) {
-            if (error instanceof Error) {
-                core.setFailed(error.message);
-            }
-            else {
-                core.setFailed('An unknown error occurred during cleanup');
-            }
+        else {
+            core.info(`Token file does not exist: ${tokenFilePath}`);
         }
-    });
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            core.setFailed(error.message);
+        }
+        else {
+            core.setFailed('An unknown error occurred during cleanup');
+        }
+    }
 }
 cleanup();
 

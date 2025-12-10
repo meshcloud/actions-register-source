@@ -7,7 +7,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Setup Meshstack Authentication
+      - name: Setup meshStack Authentication
         id: setup-meshstack-auth
         uses: ./
         with:

@@ -1,58 +1,107 @@
-# Register Source GitHub Action
+# meshStack Register Source Action
 
-This GitHub Action registers sources to the meshStack Building Block pipeline workflow. It integrates with the meshStack API to update the status of a Building Block Run with the specified steps.
+This GitHub Action registers building block sources and steps with meshStack. It integrates with the meshStack API to set up the structure of a building block run with the specified steps. This allows platform teams
+to provide additional feedback about building block execution to application teams.
 
-### Overview
+## Overview
 
-The meshStack Building Block pipeline allows you to automate and manage complex workflows by defining a series of steps that need to be executed. Each Building Block Run represents an instance of such a workflow. This GitHub Action helps you register the source of the run and update its status with the specified steps.
+A meshStack building block run allows you to automate and manage complex workflows by defining a series of steps that need to be executed. This GitHub Action helps you register the source of the run and define its steps.
 
-In order to return updates for a run to meshStack, you first need to register one or multiple steps and their resources of your run execution. It is up to you how many or how you organize your steps. You can, however, also just send step results back and the registration takes place on the fly. But in order to have a consistent display and ordering of steps, it is highly advised to pre-register steps and sources.
+It is up to you how many or how you organize your steps. You can, however, also just send step results back and the registration takes place on the fly. But in order to have a consistent display and ordering of steps, it is highly advised to pre-register all steps that you plan to execute.
 
-For more details on the meshBuildingBlockRun API, refer to the [meshcloud API documentation](https://docs.meshcloud.io/api/index.html#mesh_buildingblockrun).
+## Related Actions
 
-For more information on integrating with the meshStack Building Block pipeline, refer to the [meshStack Building Block pipeline integration documentation](https://docs.meshcloud.io/docs/meshstack.building-pipeline-integration.html#building-block-run-and-steps).
+This action is part of a suite of GitHub Actions for meshStack building block automation:
 
-### Building Block Inputs:
+- **[actions-meshstack-auth](https://github.com/meshcloud/actions-meshstack-auth)** - Authenticates to the meshStack API (prerequisite for this action)
+- **[actions-register-source](https://github.com/meshcloud/actions-register-source)** (this action) - Registers building block sources and steps with meshStack
+- **[actions-send-status](https://github.com/meshcloud/actions-send-status)** - Sends building block step status updates to meshStack
 
-When MeshStack triggers your pipeline, it sends a GitHub Actions event containing the URL, building block ID, and all the inputs your building block needs. These inputs are written to `GITHUB_OUTPUT`. You can use these inputs in your pipeline with the syntax `${{ steps.setup-meshstack-auth.outputs.your_input_from_meshstack_bb }}`.
+## Documentation
 
-For more information, refer to the [MeshStack documentation on building block inputs](https://docs.meshcloud.io/docs/administration.building-blocks.html#building-block-inputs).
+For more information about meshStack building blocks and GitHub Actions integration, refer to:
+- [meshStack GitHub Actions Integration](https://docs.meshcloud.io/integrations/github/github-actions/)
+- [meshStack API Documentation](https://docs.meshcloud.io/api/index.html#mesh_buildingblockrun)
 
-### Inputs
+## Building Block Inputs
 
-- `client_id` (required): The client ID for the API.
-- `key_secret` (required): The key secret for the API.
-- `steps` (required): The steps to register.
+When meshStack triggers your pipeline, it sends a GitHub Actions event containing the URL, building block ID, and all the inputs your building block needs. These inputs are written to `GITHUB_OUTPUT`. You can use these inputs in your pipeline with the syntax `${{ steps.setup-meshstack-auth.outputs.your_input_from_meshstack_bb }}`.
 
-### Outputs
+For more information, refer to the [meshStack documentation on building block inputs](https://docs.meshcloud.io/docs/administration.building-blocks.html#building-block-inputs).
+
+## Inputs
+
+- `steps` (required): JSON array of steps to register. Each step should have an `id` and `displayName`.
+
+## Outputs
 
 - `token_file`: Path to the file containing the authentication token
+- Dynamic outputs based on building block inputs (e.g., custom parameters defined in your building block)
 
+## Required GitHub Context Parameters
 
-### Example Usage
+This action requires the meshStack workflow trigger parameters to be present in the GitHub event payload:
+
+- `buildingBlockRunUrl` (required): URL to fetch the building block run object from the meshStack API
+- `buildingBlockRun` (optional, legacy): Base64-encoded building block run object (alternative to `buildingBlockRunUrl`)
+
+These parameters are automatically provided by meshStack when it triggers your workflow via `workflow_dispatch`.
+
+## Example Usage
 
 ```yaml
-- name: Setup meshStack bbrun
-  id: setup-meshstack-auth
-  uses: meshcloud/actions-register-source@main
-  with:
-    client_id: ${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}
-    key_secret: ${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}
-    steps: |
-      [
-        { "id": "terraform-plan", "displayName": "terraform plan" },
-      ] 
+name: Deploy Building Block
 
-- name: Terragrunt plan
-  id: terraform-plan
-  run: terraform plan -var="resource_group_name=${{ steps.setup-meshstack-auth.outputs.resource_group_name }}" -out=tfplan
+on:
+  workflow_dispatch:
+    inputs:
+      buildingBlockRunUrl:
+        description: "URL to fetch the Building Block Run Object from"
+        required: true
 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-- name: Send status on plan
-  if: ${{ steps.terraform-plan.outcome == 'success' }}
-  uses: meshcloud/actions-send-status@main
-  with:
-    step_id: "terraform-plan"
-    status: ${{ steps.terraform-plan.outcome == 'success' && 'SUCCEEDED' || 'FAILED' }} 
-    user_message: ${{ steps.terraform-plan.outcome == 'success' && 'Successful plan Terraform configuration.' || 'Failed to plan Terraform configuration.' }}
-    system_message:  ${{ steps.terraform-plan.outcome == 'success' && 'Successful plan Terraform configuration.' || 'Failed to plan Terraform configuration.' }}```
+      - name: Setup meshStack auth
+        id: setup-meshstack-auth
+        uses: meshcloud/actions-meshstack-auth@v2
+        with:
+          base_url: ${{ vars.MESHSTACK_BASE_URL }}
+          client_id: ${{ vars.BUILDINGBLOCK_API_CLIENT_ID }}
+          key_secret: ${{ secrets.BUILDINGBLOCK_API_KEY_SECRET }}
+
+      - name: Register building block source
+        id: register-source
+        uses: meshcloud/actions-register-source@v2
+        with:
+          steps: |
+            [
+              { "id": "terraform-plan", "displayName": "Terraform Plan" },
+              { "id": "terraform-apply", "displayName": "Terraform Apply" }
+            ]
+
+      - name: Terraform plan
+        id: terraform-plan
+        run: terraform plan -var="resource_group_name=${{ steps.register-source.outputs.resource_group_name }}" -out=tfplan
+
+      - name: Send status on plan
+        uses: meshcloud/actions-send-status@v2
+        with:
+          step_id: terraform-plan
+          step_status: SUCCEEDED
+
+      - name: Terraform apply
+        id: terraform-apply
+        run: terraform apply tfplan
+
+      - name: Send status on apply
+        uses: meshcloud/actions-send-status@v2
+        with:
+          step_id: terraform-apply
+          step_status: SUCCEEDED
+
+```
