@@ -59,6 +59,9 @@ interface BuildingBlockRun {
     meshstackBaseUrl: {
       href: string;
     };
+    self: {
+      href: string;
+    };
   };
 }
 
@@ -196,8 +199,7 @@ function buildRequestPayload(steps: any[], githubContext: GithubContextAdapter):
 }
 
 async function registerSource(
-  baseUrl: string,
-  bbRunUuid: string,
+  buildingBlockRunUrl: string,
   requestPayload: RequestPayload,
   requestHeaders: RequestHeaders,
   tokenFilePath: string,
@@ -208,7 +210,7 @@ async function registerSource(
 
   try {
     const response = await axios.post(
-      `${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`,
+      `${buildingBlockRunUrl}/status/source`,
       requestPayload,
       {
         headers: requestHeaders
@@ -238,29 +240,31 @@ export async function runRegisterSource(
 ): Promise<void> {
   try {
     const stepsInput = coreAdapter.getInput('steps');
-    const buildingBlockRunUrl = coreAdapter.getInput('buildingBlockRunUrl');
+    
+    // Extract buildingBlockRunUrl and buildingBlockRun from GitHub event payload
+    const buildingBlockRunUrl = githubContext.context.payload.inputs?.buildingBlockRunUrl;
+    const buildingBlockRun = githubContext.context.payload.inputs?.buildingBlockRun;
 
     coreAdapter.debug(`Steps Input: ${stepsInput}`);
     coreAdapter.debug(`Building Block Run URL: ${buildingBlockRunUrl}`);
+    coreAdapter.debug(`Building Block Run: ${buildingBlockRun}`);
 
     // Load token
     const { token, tokenFilePath } = loadTokenFromFile(coreAdapter);
 
-    // Load building block run
+    // Load building block run and determine the run URL
     let buildingBlockRunJson: BuildingBlockRun;
+    let runUrl: string;
+
     if (buildingBlockRunUrl) {
       buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter);
+      runUrl = buildingBlockRunUrl;
     } else {
-      const buildingBlockRun = githubContext.context.payload.inputs.buildingBlockRun;
       buildingBlockRunJson = loadBuildingBlockRunFromBase64(buildingBlockRun, coreAdapter);
+      runUrl = buildingBlockRunJson._links.self.href;
     }
 
-    // Extract common data from buildingBlockRunJson
-    const bbRunUuid = buildingBlockRunJson.metadata.uuid;
-    const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
-
-    coreAdapter.debug(`Base URL: ${baseUrl}`);
-    coreAdapter.debug(`BB Run UUID: ${bbRunUuid}`);
+    coreAdapter.debug(`Building Block Run URL: ${runUrl}`);
 
     // Extract inputs and write to outputs
     extractInputs(buildingBlockRunJson, coreAdapter);
@@ -274,7 +278,7 @@ export async function runRegisterSource(
     const requestHeaders = buildRequestHeaders(token);
 
     // Register the source
-    await registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
+    await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
   } catch (error) {
     if (error instanceof Error) {
       coreAdapter.setFailed(error.message);

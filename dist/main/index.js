@@ -32374,11 +32374,11 @@ function buildRequestPayload(steps, githubContext) {
         steps: steps
     };
 }
-async function registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath, coreAdapter) {
+async function registerSource(buildingBlockRunUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter) {
     coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
     coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
     try {
-        const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, requestPayload, {
+        const response = await axios_1.default.post(`${buildingBlockRunUrl}/status/source`, requestPayload, {
             headers: requestHeaders
         });
         coreAdapter.setOutput('response', response.data);
@@ -32403,25 +32403,26 @@ async function registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders
 async function runRegisterSource(coreAdapter = core, githubContext = github) {
     try {
         const stepsInput = coreAdapter.getInput('steps');
-        const buildingBlockRunUrl = coreAdapter.getInput('buildingBlockRunUrl');
+        // Extract buildingBlockRunUrl and buildingBlockRun from GitHub event payload
+        const buildingBlockRunUrl = githubContext.context.payload.inputs?.buildingBlockRunUrl;
+        const buildingBlockRun = githubContext.context.payload.inputs?.buildingBlockRun;
         coreAdapter.debug(`Steps Input: ${stepsInput}`);
         coreAdapter.debug(`Building Block Run URL: ${buildingBlockRunUrl}`);
+        coreAdapter.debug(`Building Block Run: ${buildingBlockRun}`);
         // Load token
         const { token, tokenFilePath } = loadTokenFromFile(coreAdapter);
-        // Load building block run
+        // Load building block run and determine the run URL
         let buildingBlockRunJson;
+        let runUrl;
         if (buildingBlockRunUrl) {
             buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter);
+            runUrl = buildingBlockRunUrl;
         }
         else {
-            const buildingBlockRun = githubContext.context.payload.inputs.buildingBlockRun;
             buildingBlockRunJson = loadBuildingBlockRunFromBase64(buildingBlockRun, coreAdapter);
+            runUrl = buildingBlockRunJson._links.self.href;
         }
-        // Extract common data from buildingBlockRunJson
-        const bbRunUuid = buildingBlockRunJson.metadata.uuid;
-        const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
-        coreAdapter.debug(`Base URL: ${baseUrl}`);
-        coreAdapter.debug(`BB Run UUID: ${bbRunUuid}`);
+        coreAdapter.debug(`Building Block Run URL: ${runUrl}`);
         // Extract inputs and write to outputs
         extractInputs(buildingBlockRunJson, coreAdapter);
         // Parse the JSON steps input
@@ -32431,7 +32432,7 @@ async function runRegisterSource(coreAdapter = core, githubContext = github) {
         const requestPayload = buildRequestPayload(steps, githubContext);
         const requestHeaders = buildRequestHeaders(token);
         // Register the source
-        await registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
+        await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
     }
     catch (error) {
         if (error instanceof Error) {
