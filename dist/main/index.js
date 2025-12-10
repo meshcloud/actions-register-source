@@ -32280,16 +32280,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.runRegisterSource = runRegisterSource;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
 const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 const os = __importStar(__nccwpck_require__(2037));
-function loadTokenFromFile() {
+function loadTokenFromFile(coreAdapter) {
     const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
     const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
-    core.debug(`Using token file path: ${tokenFilePath}`);
+    coreAdapter.debug(`Using token file path: ${tokenFilePath}`);
     if (!fs.existsSync(tokenFilePath)) {
         throw new Error(`Token file does not exist at ${tokenFilePath}`);
     }
@@ -32298,21 +32299,21 @@ function loadTokenFromFile() {
     if (!token) {
         throw new Error('Token not found in token file');
     }
-    core.debug(`Token: ${token}`);
+    coreAdapter.debug(`Token: ${token}`);
     return { token, tokenFilePath };
 }
-function loadBuildingBlockRunFromBase64(encodedRun) {
-    core.debug('Using buildingBlockRun from GitHub event payload');
+function loadBuildingBlockRunFromBase64(encodedRun, coreAdapter) {
+    coreAdapter.debug('Using buildingBlockRun from GitHub event payload');
     if (!encodedRun) {
         throw new Error('Neither buildingBlockRunUrl input nor buildingBlockRun payload provided');
     }
     const decodedBuildingBlockRun = Buffer.from(encodedRun, 'base64').toString('utf-8');
     const buildingBlockRunJson = JSON.parse(decodedBuildingBlockRun);
-    core.debug(`Decoded Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
+    coreAdapter.debug(`Decoded Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
     return buildingBlockRunJson;
 }
-async function loadBuildingBlockRunFromUrl(url, token) {
-    core.debug('Using buildingBlockRunUrl input');
+async function loadBuildingBlockRunFromUrl(url, token, coreAdapter) {
+    coreAdapter.debug('Using buildingBlockRunUrl input');
     const headers = {
         'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
         'Authorization': `Bearer ${token}`
@@ -32320,27 +32321,27 @@ async function loadBuildingBlockRunFromUrl(url, token) {
     try {
         const response = await axios_1.default.get(url, { headers });
         const buildingBlockRunJson = response.data;
-        core.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
+        coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
         return buildingBlockRunJson;
     }
     catch (fetchError) {
         if (axios_1.default.isAxiosError(fetchError)) {
             if (fetchError.response) {
-                core.error(`Failed to fetch building block run: ${JSON.stringify(fetchError.response.data)}`);
-                core.error(`Status code: ${fetchError.response.status}`);
+                coreAdapter.error(`Failed to fetch building block run: ${JSON.stringify(fetchError.response.data)}`);
+                coreAdapter.error(`Status code: ${fetchError.response.status}`);
             }
             else {
-                core.error(`Fetch error message: ${fetchError.message}`);
+                coreAdapter.error(`Fetch error message: ${fetchError.message}`);
             }
         }
         else {
-            core.error(`Unexpected error during fetch: ${fetchError}`);
+            coreAdapter.error(`Unexpected error during fetch: ${fetchError}`);
         }
         throw fetchError;
     }
 }
-function extractInputs(buildingBlockRun) {
-    core.debug('Extracting inputs from building block run');
+function extractInputs(buildingBlockRun, coreAdapter) {
+    coreAdapter.debug('Extracting inputs from building block run');
     const inputs = buildingBlockRun.spec.buildingBlock.spec.inputs;
     const extractedInputs = {};
     inputs.forEach((input) => {
@@ -32349,10 +32350,10 @@ function extractInputs(buildingBlockRun) {
             extractedInputs[input.key] = value;
         }
     });
-    core.debug(`Extracted Inputs: ${JSON.stringify(extractedInputs)}`);
+    coreAdapter.debug(`Extracted Inputs: ${JSON.stringify(extractedInputs)}`);
     // Write each extracted input to GITHUB_OUTPUT
     for (const [key, value] of Object.entries(extractedInputs)) {
-        core.setOutput(key, value);
+        coreAdapter.setOutput(key, value);
     }
     return extractedInputs;
 }
@@ -32363,85 +32364,93 @@ function buildRequestHeaders(token) {
         'Authorization': `Bearer ${token}`
     };
 }
-function buildRequestPayload(steps) {
+function buildRequestPayload(steps, githubContext) {
     return {
         source: {
             id: 'github',
-            externalRunId: github.context.runId,
-            externalRunUrl: `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/actions/runs/${github.context.runId}`
+            externalRunId: githubContext.context.runId,
+            externalRunUrl: `https://github.com/${githubContext.context.repo.owner}/${githubContext.context.repo.repo}/actions/runs/${githubContext.context.runId}`
         },
         steps: steps
     };
 }
-async function registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath) {
-    core.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
-    core.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
+async function registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath, coreAdapter) {
+    coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
+    coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
     try {
         const response = await axios_1.default.post(`${baseUrl}/api/meshobjects/meshbuildingblockruns/${bbRunUuid}/status/source`, requestPayload, {
             headers: requestHeaders
         });
-        core.setOutput('response', response.data);
-        core.setOutput('token_file', tokenFilePath);
+        coreAdapter.setOutput('response', response.data);
+        coreAdapter.setOutput('token_file', tokenFilePath);
     }
     catch (registerError) {
         if (axios_1.default.isAxiosError(registerError)) {
             if (registerError.response) {
-                core.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
-                core.error(`Status code: ${registerError.response.status}`);
+                coreAdapter.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
+                coreAdapter.error(`Status code: ${registerError.response.status}`);
             }
             else {
-                core.error(`Register source error message: ${registerError.message}`);
+                coreAdapter.error(`Register source error message: ${registerError.message}`);
             }
         }
         else {
-            core.error(`Unexpected error: ${registerError}`);
+            coreAdapter.error(`Unexpected error: ${registerError}`);
         }
         throw registerError;
     }
 }
-async function run() {
+async function runRegisterSource(coreAdapter = core, githubContext = github) {
     try {
-        const stepsInput = core.getInput('steps');
-        const buildingBlockRunUrl = core.getInput('buildingBlockRunUrl');
-        core.debug(`Steps Input: ${stepsInput}`);
-        core.debug(`Building Block Run URL: ${buildingBlockRunUrl}`);
+        const stepsInput = coreAdapter.getInput('steps');
+        const buildingBlockRunUrl = coreAdapter.getInput('buildingBlockRunUrl');
+        coreAdapter.debug(`Steps Input: ${stepsInput}`);
+        coreAdapter.debug(`Building Block Run URL: ${buildingBlockRunUrl}`);
         // Load token
-        const { token, tokenFilePath } = loadTokenFromFile();
+        const { token, tokenFilePath } = loadTokenFromFile(coreAdapter);
         // Load building block run
         let buildingBlockRunJson;
         if (buildingBlockRunUrl) {
-            buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token);
+            buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter);
         }
         else {
-            const buildingBlockRun = github.context.payload.inputs.buildingBlockRun;
-            buildingBlockRunJson = loadBuildingBlockRunFromBase64(buildingBlockRun);
+            const buildingBlockRun = githubContext.context.payload.inputs.buildingBlockRun;
+            buildingBlockRunJson = loadBuildingBlockRunFromBase64(buildingBlockRun, coreAdapter);
         }
         // Extract common data from buildingBlockRunJson
         const bbRunUuid = buildingBlockRunJson.metadata.uuid;
         const baseUrl = buildingBlockRunJson._links.meshstackBaseUrl.href;
-        core.debug(`Base URL: ${baseUrl}`);
-        core.debug(`BB Run UUID: ${bbRunUuid}`);
+        coreAdapter.debug(`Base URL: ${baseUrl}`);
+        coreAdapter.debug(`BB Run UUID: ${bbRunUuid}`);
         // Extract inputs and write to outputs
-        extractInputs(buildingBlockRunJson);
+        extractInputs(buildingBlockRunJson, coreAdapter);
         // Parse the JSON steps input
         const steps = JSON.parse(stepsInput);
-        core.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
+        coreAdapter.debug(`Parsed Steps: ${JSON.stringify(steps)}`);
         // Prepare the request payload and headers
-        const requestPayload = buildRequestPayload(steps);
+        const requestPayload = buildRequestPayload(steps, githubContext);
         const requestHeaders = buildRequestHeaders(token);
         // Register the source
-        await registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath);
+        await registerSource(baseUrl, bbRunUuid, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
     }
     catch (error) {
         if (error instanceof Error) {
-            core.setFailed(error.message);
+            coreAdapter.setFailed(error.message);
+            throw error;
         }
         else {
-            core.setFailed('An unknown error occurred');
+            coreAdapter.setFailed('An unknown error occurred');
+            throw error;
         }
     }
 }
-run();
+async function run() {
+    await runRegisterSource(core, github);
+}
+// Only run if this file is executed directly (not imported)
+if (require.main === require.cache[eval('__filename')]) {
+    run();
+}
 
 
 /***/ }),
