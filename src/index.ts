@@ -4,6 +4,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { logAxiosError, isAxiosError } from './error-utils';
 
 // allows stubbing @actions/core in tests
 export interface CoreAdapter {
@@ -136,24 +137,10 @@ async function loadBuildingBlockRunFromUrl(
     'Authorization': `Bearer ${token}`
   };
 
-  try {
-    const response = await axios.get(url, { headers });
-    const buildingBlockRunJson = response.data;
-    coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
-    return buildingBlockRunJson;
-  } catch (fetchError) {
-    if (axios.isAxiosError(fetchError)) {
-      if (fetchError.response) {
-        coreAdapter.error(`Failed to fetch building block run: ${JSON.stringify(fetchError.response.data)}`);
-        coreAdapter.error(`Status code: ${fetchError.response.status}`);
-      } else {
-        coreAdapter.error(`Fetch error message: ${fetchError.message}`);
-      }
-    } else {
-      coreAdapter.error(`Unexpected error during fetch: ${fetchError}`);
-    }
-    throw fetchError;
-  }
+  const response = await axios.get(url, { headers });
+  const buildingBlockRunJson = response.data;
+  coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
+  return buildingBlockRunJson;
 }
 
 function extractInputs(buildingBlockRun: BuildingBlockRun, coreAdapter: CoreAdapter): ExtractedInputs {
@@ -208,30 +195,16 @@ async function registerSource(
   coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
   coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
 
-  try {
-    const response = await axios.post(
-      `${buildingBlockRunUrl}/status/source`,
-      requestPayload,
-      {
-        headers: requestHeaders
-      }
-    );
-
-    coreAdapter.setOutput('response', response.data);
-    coreAdapter.setOutput('token_file', tokenFilePath);
-  } catch (registerError) {
-    if (axios.isAxiosError(registerError)) {
-      if (registerError.response) {
-        coreAdapter.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
-        coreAdapter.error(`Status code: ${registerError.response.status}`);
-      } else {
-        coreAdapter.error(`Register source error message: ${registerError.message}`);
-      }
-    } else {
-      coreAdapter.error(`Unexpected error: ${registerError}`);
+  const response = await axios.post(
+    `${buildingBlockRunUrl}/status/source`,
+    requestPayload,
+    {
+      headers: requestHeaders
     }
-    throw registerError;
-  }
+  );
+
+  coreAdapter.setOutput('response', response.data);
+  coreAdapter.setOutput('token_file', tokenFilePath);
 }
 
 export async function runRegisterSource(
@@ -280,13 +253,15 @@ export async function runRegisterSource(
     // Register the source
     await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
   } catch (error) {
-    if (error instanceof Error) {
-      coreAdapter.setFailed(error.message);
-      throw error;
+    // Handle all errors at this level
+    if (isAxiosError(error)) {
+      logAxiosError(error, coreAdapter, 'Register source operation failed');
+    } else if (error instanceof Error) {
+      coreAdapter.error(error.message);
     } else {
-      coreAdapter.setFailed('An unknown error occurred');
-      throw error;
+      coreAdapter.error(`Unexpected error: ${error}`);
     }
+    coreAdapter.setFailed(error instanceof Error ? error.message : String(error));
   }
 }
 

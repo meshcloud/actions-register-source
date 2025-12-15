@@ -4,7 +4,6 @@ inputs:
   steps:
     description: 'The steps to register'
     required: true
-    type: string
 outputs:
   token_file:
     description: 'Path to the file containing the authentication token'
