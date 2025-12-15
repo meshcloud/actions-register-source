@@ -33318,6 +33318,69 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 823:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.formatAxiosError = formatAxiosError;
+exports.logAxiosError = logAxiosError;
+exports.isAxiosError = isAxiosError;
+const axios_1 = __importDefault(__nccwpck_require__(8757));
+/**
+ * Formats an AxiosError into a concise, readable error message
+ * Includes: HTTP method, URL, status code, and response body (typically error message)
+ * Excludes verbose config details that cause thousands of lines of output
+ */
+function formatAxiosError(error) {
+    const parts = [];
+    if (error.config) {
+        if (error.config.method) {
+            parts.push(`Method: ${error.config.method.toUpperCase()}`);
+        }
+        if (error.config.url) {
+            parts.push(`URL: ${error.config.url}`);
+        }
+    }
+    if (error.response) {
+        parts.push(`Status: ${error.response.status}`);
+        if (error.response.data) {
+            const responseData = error.response.data;
+            if (typeof responseData === 'string') {
+                parts.push(`Response: ${responseData}`);
+            }
+            else if (typeof responseData === 'object') {
+                parts.push(`Response: ${JSON.stringify(responseData)}`);
+            }
+        }
+    }
+    else if (error.message) {
+        parts.push(`Error: ${error.message}`);
+    }
+    return parts.join(' | ');
+}
+/**
+ * Logs an AxiosError with concise formatting
+ * HTTP errors are considered "expected" and are treated as fully handled
+ */
+function logAxiosError(error, coreAdapter, context) {
+    const formattedError = formatAxiosError(error);
+    coreAdapter.error(`${context}: ${formattedError}`);
+}
+/**
+ * Determines if an error is an AxiosError
+ */
+function isAxiosError(error) {
+    return axios_1.default.isAxiosError(error);
+}
+
+
+/***/ }),
+
 /***/ 6144:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -33357,6 +33420,7 @@ const axios_1 = __importDefault(__nccwpck_require__(8757));
 const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 const os = __importStar(__nccwpck_require__(2037));
+const error_utils_1 = __nccwpck_require__(823);
 function loadTokenFromFile(coreAdapter) {
     const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
     const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
@@ -33395,14 +33459,8 @@ async function loadBuildingBlockRunFromUrl(url, token, coreAdapter) {
         return buildingBlockRunJson;
     }
     catch (fetchError) {
-        if (axios_1.default.isAxiosError(fetchError)) {
-            if (fetchError.response) {
-                coreAdapter.error(`Failed to fetch building block run: ${JSON.stringify(fetchError.response.data)}`);
-                coreAdapter.error(`Status code: ${fetchError.response.status}`);
-            }
-            else {
-                coreAdapter.error(`Fetch error message: ${fetchError.message}`);
-            }
+        if ((0, error_utils_1.isAxiosError)(fetchError)) {
+            (0, error_utils_1.logAxiosError)(fetchError, coreAdapter, 'Failed to fetch building block run');
         }
         else {
             coreAdapter.error(`Unexpected error during fetch: ${fetchError}`);
@@ -33455,14 +33513,8 @@ async function registerSource(buildingBlockRunUrl, requestPayload, requestHeader
         coreAdapter.setOutput('token_file', tokenFilePath);
     }
     catch (registerError) {
-        if (axios_1.default.isAxiosError(registerError)) {
-            if (registerError.response) {
-                coreAdapter.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
-                coreAdapter.error(`Status code: ${registerError.response.status}`);
-            }
-            else {
-                coreAdapter.error(`Register source error message: ${registerError.message}`);
-            }
+        if ((0, error_utils_1.isAxiosError)(registerError)) {
+            (0, error_utils_1.logAxiosError)(registerError, coreAdapter, 'Failed to register source');
         }
         else {
             coreAdapter.error(`Unexpected error: ${registerError}`);
@@ -33505,18 +33557,25 @@ async function runRegisterSource(coreAdapter = core, githubContext = github) {
         await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
     }
     catch (error) {
+        // Exception handler of last resort
         if (error instanceof Error) {
             coreAdapter.setFailed(error.message);
-            throw error;
         }
         else {
-            coreAdapter.setFailed('An unknown error occurred');
-            throw error;
+            coreAdapter.setFailed(`An unknown error occurred: ${error}`);
         }
+        throw error;
     }
 }
 async function run() {
-    await runRegisterSource(core, github);
+    try {
+        await runRegisterSource(core, github);
+    }
+    catch (error) {
+        // Last-resort exception handler: prevent unhandled rejections
+        // The error has already been logged and setFailed has been called
+        process.exit(1);
+    }
 }
 // Only run if this file is executed directly (not imported)
 if (require.main === require.cache[eval('__filename')]) {

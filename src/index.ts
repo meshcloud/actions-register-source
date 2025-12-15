@@ -4,6 +4,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { logAxiosError, isAxiosError } from './error-utils';
 
 // allows stubbing @actions/core in tests
 export interface CoreAdapter {
@@ -142,13 +143,8 @@ async function loadBuildingBlockRunFromUrl(
     coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
     return buildingBlockRunJson;
   } catch (fetchError) {
-    if (axios.isAxiosError(fetchError)) {
-      if (fetchError.response) {
-        coreAdapter.error(`Failed to fetch building block run: ${JSON.stringify(fetchError.response.data)}`);
-        coreAdapter.error(`Status code: ${fetchError.response.status}`);
-      } else {
-        coreAdapter.error(`Fetch error message: ${fetchError.message}`);
-      }
+    if (isAxiosError(fetchError)) {
+      logAxiosError(fetchError, coreAdapter, 'Failed to fetch building block run');
     } else {
       coreAdapter.error(`Unexpected error during fetch: ${fetchError}`);
     }
@@ -220,13 +216,8 @@ async function registerSource(
     coreAdapter.setOutput('response', response.data);
     coreAdapter.setOutput('token_file', tokenFilePath);
   } catch (registerError) {
-    if (axios.isAxiosError(registerError)) {
-      if (registerError.response) {
-        coreAdapter.error(`Register source error response: ${JSON.stringify(registerError.response.data)}`);
-        coreAdapter.error(`Status code: ${registerError.response.status}`);
-      } else {
-        coreAdapter.error(`Register source error message: ${registerError.message}`);
-      }
+    if (isAxiosError(registerError)) {
+      logAxiosError(registerError, coreAdapter, 'Failed to register source');
     } else {
       coreAdapter.error(`Unexpected error: ${registerError}`);
     }
@@ -280,18 +271,24 @@ export async function runRegisterSource(
     // Register the source
     await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
   } catch (error) {
+    // Exception handler of last resort
     if (error instanceof Error) {
       coreAdapter.setFailed(error.message);
-      throw error;
     } else {
-      coreAdapter.setFailed('An unknown error occurred');
-      throw error;
+      coreAdapter.setFailed(`An unknown error occurred: ${error}`);
     }
+    throw error;
   }
 }
 
 async function run() {
-  await runRegisterSource(core, github);
+  try {
+    await runRegisterSource(core, github);
+  } catch (error) {
+    // Last-resort exception handler: prevent unhandled rejections
+    // The error has already been logged and setFailed has been called
+    process.exit(1);
+  }
 }
 
 // Only run if this file is executed directly (not imported)
