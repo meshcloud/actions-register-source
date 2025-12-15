@@ -33452,21 +33452,10 @@ async function loadBuildingBlockRunFromUrl(url, token, coreAdapter) {
         'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
         'Authorization': `Bearer ${token}`
     };
-    try {
-        const response = await axios_1.default.get(url, { headers });
-        const buildingBlockRunJson = response.data;
-        coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
-        return buildingBlockRunJson;
-    }
-    catch (fetchError) {
-        if ((0, error_utils_1.isAxiosError)(fetchError)) {
-            (0, error_utils_1.logAxiosError)(fetchError, coreAdapter, 'Failed to fetch building block run');
-        }
-        else {
-            coreAdapter.error(`Unexpected error during fetch: ${fetchError}`);
-        }
-        throw fetchError;
-    }
+    const response = await axios_1.default.get(url, { headers });
+    const buildingBlockRunJson = response.data;
+    coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
+    return buildingBlockRunJson;
 }
 function extractInputs(buildingBlockRun, coreAdapter) {
     coreAdapter.debug('Extracting inputs from building block run');
@@ -33505,22 +33494,11 @@ function buildRequestPayload(steps, githubContext) {
 async function registerSource(buildingBlockRunUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter) {
     coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
     coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
-    try {
-        const response = await axios_1.default.post(`${buildingBlockRunUrl}/status/source`, requestPayload, {
-            headers: requestHeaders
-        });
-        coreAdapter.setOutput('response', response.data);
-        coreAdapter.setOutput('token_file', tokenFilePath);
-    }
-    catch (registerError) {
-        if ((0, error_utils_1.isAxiosError)(registerError)) {
-            (0, error_utils_1.logAxiosError)(registerError, coreAdapter, 'Failed to register source');
-        }
-        else {
-            coreAdapter.error(`Unexpected error: ${registerError}`);
-        }
-        throw registerError;
-    }
+    const response = await axios_1.default.post(`${buildingBlockRunUrl}/status/source`, requestPayload, {
+        headers: requestHeaders
+    });
+    coreAdapter.setOutput('response', response.data);
+    coreAdapter.setOutput('token_file', tokenFilePath);
 }
 async function runRegisterSource(coreAdapter = core, githubContext = github) {
     try {
@@ -33557,25 +33535,21 @@ async function runRegisterSource(coreAdapter = core, githubContext = github) {
         await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
     }
     catch (error) {
-        // Exception handler of last resort
-        if (error instanceof Error) {
-            coreAdapter.setFailed(error.message);
+        // Handle all errors at this level
+        if ((0, error_utils_1.isAxiosError)(error)) {
+            (0, error_utils_1.logAxiosError)(error, coreAdapter, 'Register source operation failed');
+        }
+        else if (error instanceof Error) {
+            coreAdapter.error(error.message);
         }
         else {
-            coreAdapter.setFailed(`An unknown error occurred: ${error}`);
+            coreAdapter.error(`Unexpected error: ${error}`);
         }
-        throw error;
+        coreAdapter.setFailed(error instanceof Error ? error.message : String(error));
     }
 }
 async function run() {
-    try {
-        await runRegisterSource(core, github);
-    }
-    catch (error) {
-        // Last-resort exception handler: prevent unhandled rejections
-        // The error has already been logged and setFailed has been called
-        process.exit(1);
-    }
+    await runRegisterSource(core, github);
 }
 // Only run if this file is executed directly (not imported)
 if (require.main === require.cache[eval('__filename')]) {
