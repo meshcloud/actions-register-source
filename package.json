@@ -16,7 +16,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
+    "@actions/core": "^2.0.1",
     "@actions/github": "^6.0.0",
     "axios": "^1.13.2"
   },
