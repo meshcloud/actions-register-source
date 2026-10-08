@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { logAxiosError, isAxiosError } from './error-utils';
+import { REQUEST_TIMEOUT_MS, RetryOptions, withRetry } from './retry';
 
 // allows stubbing @actions/core in tests
 export interface CoreAdapter {
@@ -13,6 +14,7 @@ export interface CoreAdapter {
   setFailed: (message: string) => void;
   debug: (message: string) => void;
   info: (message: string) => void;
+  warning: (message: string) => void;
   error: (message: string) => void;
 }
 
@@ -128,7 +130,8 @@ function loadBuildingBlockRunFromBase64(encodedRun: string, coreAdapter: CoreAda
 async function loadBuildingBlockRunFromUrl(
   url: string,
   token: string,
-  coreAdapter: CoreAdapter
+  coreAdapter: CoreAdapter,
+  retryOptions: RetryOptions
 ): Promise<BuildingBlockRun> {
   coreAdapter.debug('Using buildingBlockRunUrl input');
 
@@ -137,7 +140,7 @@ async function loadBuildingBlockRunFromUrl(
     'Authorization': `Bearer ${token}`
   };
 
-  const response = await axios.get(url, { headers });
+  const response = await withRetry(() => axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS }), retryOptions);
   const buildingBlockRunJson = response.data;
   coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
   return buildingBlockRunJson;
@@ -190,26 +193,40 @@ async function registerSource(
   requestPayload: RequestPayload,
   requestHeaders: RequestHeaders,
   tokenFilePath: string,
-  coreAdapter: CoreAdapter
+  coreAdapter: CoreAdapter,
+  retryOptions: RetryOptions
 ): Promise<void> {
   coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
   coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
 
-  const response = await axios.post(
-    `${buildingBlockRunUrl}/status/source`,
-    requestPayload,
-    {
-      headers: requestHeaders
+  const responseData = await withRetry(async attempt => {
+    try {
+      const response = await axios.post(
+        `${buildingBlockRunUrl}/status/source`,
+        requestPayload,
+        {
+          headers: requestHeaders,
+          timeout: REQUEST_TIMEOUT_MS
+        }
+      );
+      return response.data;
+    } catch (error) {
+      if (attempt > 1 && isAxiosError(error) && error.response?.status === 409) {
+        coreAdapter.info('The source is already registered: an earlier attempt reached meshStack.');
+        return '';
+      }
+      throw error;
     }
-  );
+  }, retryOptions);
 
-  coreAdapter.setOutput('response', response.data);
+  coreAdapter.setOutput('response', responseData);
   coreAdapter.setOutput('token_file', tokenFilePath);
 }
 
 export async function runRegisterSource(
   coreAdapter: CoreAdapter = core,
-  githubContext: GithubContextAdapter = github
+  githubContext: GithubContextAdapter = github,
+  retryTiming: Omit<RetryOptions, 'warning'> = {}
 ): Promise<void> {
   try {
     const stepsInput = coreAdapter.getInput('steps');
@@ -225,12 +242,14 @@ export async function runRegisterSource(
     // Load token
     const { token, tokenFilePath } = loadTokenFromFile(coreAdapter);
 
+    const retryOptions: RetryOptions = { ...retryTiming, warning: coreAdapter.warning };
+
     // Load building block run and determine the run URL
     let buildingBlockRunJson: BuildingBlockRun;
     let runUrl: string;
 
     if (buildingBlockRunUrl) {
-      buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter);
+      buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter, retryOptions);
       runUrl = buildingBlockRunUrl;
     } else {
       buildingBlockRunJson = loadBuildingBlockRunFromBase64(buildingBlockRun, coreAdapter);
@@ -251,7 +270,7 @@ export async function runRegisterSource(
     const requestHeaders = buildRequestHeaders(token);
 
     // Register the source
-    await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
+    await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter, retryOptions);
   } catch (error) {
     // Handle all errors at this level
     if (isAxiosError(error)) {

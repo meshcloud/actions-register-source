@@ -38,6 +38,10 @@ For more information, refer to the [meshStack documentation on building block in
 - `token_file`: Path to the file containing the authentication token
 - Dynamic outputs based on building block inputs (e.g., custom parameters defined in your building block)
 
+## Retries
+
+meshStack can be unavailable for a few minutes while it is updated. The action therefore retries loading the building block run and registering the source when meshStack answers `502`, `503` or `504`, when the connection fails, or when meshStack does not answer within 30 seconds. It waits 2 seconds before the first retry and doubles the wait up to 60 seconds, for about 10 minutes in total, and logs a warning for each retry. Any other error, such as a `500` or a `4xx`, fails the step immediately. A retried registration that finds the source already registered counts as a success, because the earlier attempt reached meshStack.
+
 ## Required GitHub Context Parameters
 
 This action requires the meshStack workflow trigger parameters to be present in the GitHub event payload:

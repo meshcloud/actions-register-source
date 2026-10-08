@@ -33421,6 +33421,7 @@ const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 const os = __importStar(__nccwpck_require__(2037));
 const error_utils_1 = __nccwpck_require__(823);
+const retry_1 = __nccwpck_require__(1043);
 function loadTokenFromFile(coreAdapter) {
     const tempDir = process.env.RUNNER_TEMP || os.tmpdir();
     const tokenFilePath = path.join(tempDir, 'meshstack_token.json');
@@ -33446,13 +33447,13 @@ function loadBuildingBlockRunFromBase64(encodedRun, coreAdapter) {
     coreAdapter.debug(`Decoded Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
     return buildingBlockRunJson;
 }
-async function loadBuildingBlockRunFromUrl(url, token, coreAdapter) {
+async function loadBuildingBlockRunFromUrl(url, token, coreAdapter, retryOptions) {
     coreAdapter.debug('Using buildingBlockRunUrl input');
     const headers = {
         'Accept': 'application/vnd.meshcloud.api.meshbuildingblockrun.v1.hal+json',
         'Authorization': `Bearer ${token}`
     };
-    const response = await axios_1.default.get(url, { headers });
+    const response = await (0, retry_1.withRetry)(() => axios_1.default.get(url, { headers, timeout: retry_1.REQUEST_TIMEOUT_MS }), retryOptions);
     const buildingBlockRunJson = response.data;
     coreAdapter.debug(`Fetched Building Block Run: ${JSON.stringify(buildingBlockRunJson)}`);
     return buildingBlockRunJson;
@@ -33491,16 +33492,29 @@ function buildRequestPayload(steps, githubContext) {
         steps: steps
     };
 }
-async function registerSource(buildingBlockRunUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter) {
+async function registerSource(buildingBlockRunUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter, retryOptions) {
     coreAdapter.debug(`Request Payload: ${JSON.stringify(requestPayload)}`);
     coreAdapter.debug(`Request Headers: ${JSON.stringify(requestHeaders)}`);
-    const response = await axios_1.default.post(`${buildingBlockRunUrl}/status/source`, requestPayload, {
-        headers: requestHeaders
-    });
-    coreAdapter.setOutput('response', response.data);
+    const responseData = await (0, retry_1.withRetry)(async (attempt) => {
+        try {
+            const response = await axios_1.default.post(`${buildingBlockRunUrl}/status/source`, requestPayload, {
+                headers: requestHeaders,
+                timeout: retry_1.REQUEST_TIMEOUT_MS
+            });
+            return response.data;
+        }
+        catch (error) {
+            if (attempt > 1 && (0, error_utils_1.isAxiosError)(error) && error.response?.status === 409) {
+                coreAdapter.info('The source is already registered: an earlier attempt reached meshStack.');
+                return '';
+            }
+            throw error;
+        }
+    }, retryOptions);
+    coreAdapter.setOutput('response', responseData);
     coreAdapter.setOutput('token_file', tokenFilePath);
 }
-async function runRegisterSource(coreAdapter = core, githubContext = github) {
+async function runRegisterSource(coreAdapter = core, githubContext = github, retryTiming = {}) {
     try {
         const stepsInput = coreAdapter.getInput('steps');
         // Extract buildingBlockRunUrl and buildingBlockRun from GitHub event payload
@@ -33511,11 +33525,12 @@ async function runRegisterSource(coreAdapter = core, githubContext = github) {
         coreAdapter.debug(`Building Block Run: ${buildingBlockRun}`);
         // Load token
         const { token, tokenFilePath } = loadTokenFromFile(coreAdapter);
+        const retryOptions = { ...retryTiming, warning: coreAdapter.warning };
         // Load building block run and determine the run URL
         let buildingBlockRunJson;
         let runUrl;
         if (buildingBlockRunUrl) {
-            buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter);
+            buildingBlockRunJson = await loadBuildingBlockRunFromUrl(buildingBlockRunUrl, token, coreAdapter, retryOptions);
             runUrl = buildingBlockRunUrl;
         }
         else {
@@ -33532,7 +33547,7 @@ async function runRegisterSource(coreAdapter = core, githubContext = github) {
         const requestPayload = buildRequestPayload(steps, githubContext);
         const requestHeaders = buildRequestHeaders(token);
         // Register the source
-        await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter);
+        await registerSource(runUrl, requestPayload, requestHeaders, tokenFilePath, coreAdapter, retryOptions);
     }
     catch (error) {
         // Handle all errors at this level
@@ -33554,6 +33569,64 @@ async function run() {
 // Only run if this file is executed directly (not imported)
 if (require.main === require.cache[eval('__filename')]) {
     run();
+}
+
+
+/***/ }),
+
+/***/ 1043:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.REQUEST_TIMEOUT_MS = void 0;
+exports.withRetry = withRetry;
+const axios_1 = __nccwpck_require__(8757);
+const error_utils_1 = __nccwpck_require__(823);
+// meshStack answers these, or does not answer at all, for a few minutes while it is being updated.
+const RETRYABLE_STATUSES = [502, 503, 504];
+const RETRYABLE_NETWORK_ERROR_CODES = ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EPIPE', 'EAI_AGAIN', 'ERR_NETWORK'];
+exports.REQUEST_TIMEOUT_MS = 30000;
+const RETRY_BUDGET_MS = 10 * 60000;
+const INITIAL_DELAY_MS = 2000;
+const MAX_DELAY_MS = 60000;
+function isRetryable(error) {
+    if (error.response) {
+        return RETRYABLE_STATUSES.includes(error.response.status);
+    }
+    return error.code !== undefined && RETRYABLE_NETWORK_ERROR_CODES.includes(error.code);
+}
+function retryDelayMs(failedAttempt) {
+    return Math.min(INITIAL_DELAY_MS * 2 ** (failedAttempt - 1), MAX_DELAY_MS);
+}
+/**
+ * Calls `request` until it succeeds, fails with an error that is not retryable, or the next attempt would start
+ * after the retry budget. Throws the last error unchanged.
+ */
+async function withRetry(request, options) {
+    const { warning, budgetMs = RETRY_BUDGET_MS, sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now } = options;
+    const deadline = now() + budgetMs;
+    for (let attempt = 1;; attempt++) {
+        try {
+            return await request(attempt);
+        }
+        catch (error) {
+            if (!(0, axios_1.isAxiosError)(error) || !isRetryable(error)) {
+                if (attempt > 1) {
+                    warning(`Attempt ${attempt} failed with an error that is not retried. An earlier attempt may have reached meshStack.`);
+                }
+                throw error;
+            }
+            const delayMs = retryDelayMs(attempt);
+            if (now() + delayMs >= deadline) {
+                warning(`Attempt ${attempt} failed and the retry budget of ${budgetMs / 1000}s is used up.`);
+                throw error;
+            }
+            warning(`Attempt ${attempt} failed (${(0, error_utils_1.formatAxiosError)(error)}). Retrying in ${delayMs / 1000}s.`);
+            await sleep(delayMs);
+        }
+    }
 }
 
 
